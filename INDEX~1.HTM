@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<title>Monitor de Paneles</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:     #0f172a; --bg2: #1e293b; --bg3: #334155;
+  --green:  #10b981; --greenL: rgba(16,185,129,.13);
+  --purple: #a855f7; --purpleL: rgba(168,85,247,.13);
+  --text:   #f1f5f9; --muted: #94a3b8; --border: #1e293b;
+  --amber:  #f59e0b; --blue: #60a5fa; --red: #ef4444;
+}
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; font-size:14px; }
+/* ── Header ── */
+header { background:var(--bg2); padding:14px 16px 10px; border-bottom:1px solid var(--bg3); position:sticky; top:0; z-index:100; }
+.hrow { display:flex; justify-content:space-between; align-items:flex-start; }
+.htitle { font-size:13px; font-weight:700; color:var(--muted); letter-spacing:.6px; text-transform:uppercase; }
+#clock { font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--green); letter-spacing:1px; line-height:1; }
+#datedisplay { font-size:12px; color:var(--muted); margin-top:4px; }
+/* ── SW Status ── */
+#sw-bar { display:flex; align-items:center; gap:6px; padding:6px 16px; background:var(--bg2); border-bottom:1px solid var(--bg3); font-size:11px; }
+.sw-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+/* ── Next Alert ── */
+#next-banner { margin:10px 12px 0; background:var(--bg2); border:1px solid var(--amber); border-radius:10px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+#next-banner.hidden { display:none; }
+.nbl { flex:1; min-width:0; }
+.nblabel { font-size:10px; font-weight:700; color:var(--amber); text-transform:uppercase; letter-spacing:.6px; }
+.nbname { font-size:13px; color:var(--text); margin:2px 0 1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nbsub { font-size:11px; color:var(--muted); }
+#nb-cd { font-size:22px; font-weight:700; color:var(--amber); font-variant-numeric:tabular-nums; white-space:nowrap; text-align:right; }
+/* ── Controls ── */
+#controls { display:flex; gap:8px; padding:10px 12px 6px; flex-wrap:wrap; align-items:center; }
+.btn { border:none; border-radius:8px; padding:7px 13px; font-size:12px; font-weight:600; cursor:pointer; transition:opacity .15s; }
+.btn:hover { opacity:.82; } .btn:active { opacity:.65; }
+#btn-notif { background:var(--green); color:#0f172a; }
+#btn-sound { background:var(--bg3); color:var(--text); }
+#notif-st { font-size:11px; color:var(--muted); padding:2px 0; }
+/* ── Legend ── */
+#legend { display:flex; gap:14px; padding:2px 12px 8px; font-size:11px; color:var(--muted); flex-wrap:wrap; }
+.leg { display:flex; align-items:center; gap:5px; }
+.ldot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+/* ── Special banners ── */
+.sp-banner { margin:16px 12px; background:var(--bg2); border-radius:12px; padding:24px 16px; text-align:center; display:none; }
+.sp-banner.show { display:block; }
+.sp-emoji { font-size:40px; margin-bottom:10px; }
+.sp-title { font-size:17px; font-weight:700; color:var(--blue); }
+.sp-msg { font-size:12px; color:var(--muted); margin-top:6px; }
+/* ── Schedule ── */
+.sec-hdr { padding:10px 12px 4px; font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; }
+.si { display:flex; align-items:flex-start; padding:9px 12px; border-bottom:1px solid var(--border); transition:background .25s; }
+.si.past     { opacity:.35; }
+.si.verified { opacity:.25; }
+.si.next-up  { border-left:3px solid var(--amber); }
+.si.active   { background:rgba(245,158,11,.07); border-left:3px solid var(--amber); }
+.tc { min-width:52px; padding-top:1px; }
+.ts { font-size:12px; font-variant-numeric:tabular-nums; color:var(--text); font-weight:500; }
+.ta { font-size:10px; color:var(--amber); margin-top:2px; }
+.dot { width:9px; height:9px; border-radius:50%; margin:3px 9px 0 5px; flex-shrink:0; }
+.dot.auto { background:var(--green); } .dot.manual { background:var(--purple); }
+.ib { flex:1; min-width:0; }
+.iname { font-size:13px; color:var(--text); line-height:1.35; }
+.badge { display:inline-block; font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; margin-top:3px; text-transform:uppercase; letter-spacing:.4px; }
+.badge.auto   { background:var(--greenL);  color:var(--green); }
+.badge.manual { background:var(--purpleL); color:var(--purple); }
+.badge.extra  { background:rgba(96,165,250,.15); color:var(--blue); }
+.dbtn { background:transparent; border:1px solid var(--bg3); color:var(--muted); font-size:11px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer; margin-left:8px; align-self:center; flex-shrink:0; transition:all .15s; }
+.dbtn:hover { border-color:var(--green); color:var(--green); }
+.verified .dbtn { border-color:var(--green); color:var(--green); }
+@keyframes flash { 0%,100%{background:transparent} 30%{background:rgba(245,158,11,.22)} }
+.flashing { animation:flash .6s ease 4; }
+/* ── Footer ── */
+#footer { margin:14px 12px 32px; background:var(--bg2); border-radius:10px; padding:12px 14px; font-size:11px; color:var(--muted); line-height:1.65; }
+#footer strong { color:var(--text); }
+::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:var(--bg3); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <div><div class="htitle">📊 Monitor de Paneles</div><div id="datedisplay">Cargando...</div></div>
+    <div id="clock">--:--:--</div>
+  </div>
+</header>
+
+<div id="sw-bar">
+  <div class="sw-dot" id="sw-dot" style="background:var(--muted)"></div>
+  <span id="sw-status">Iniciando servicio de alertas...</span>
+</div>
+
+<div id="next-banner" class="hidden">
+  <div class="nbl">
+    <div class="nblabel">⏰ Próxima alerta</div>
+    <div class="nbname" id="nb-name">-</div>
+    <div class="nbsub"  id="nb-sub">-</div>
+  </div>
+  <div id="nb-cd">--:--</div>
+</div>
+
+<div id="controls">
+  <button class="btn" id="btn-notif" onclick="reqNotif()">🔔 Activar alertas</button>
+  <button class="btn" id="btn-sound" onclick="testSound()">🔊 Probar sonido</button>
+  <div id="notif-st"></div>
+</div>
+
+<div id="legend">
+  <div class="leg"><div class="ldot" style="background:var(--green)"></div>Automático — alerta 10 min después</div>
+  <div class="leg"><div class="ldot" style="background:var(--purple)"></div>Manual — alerta 20 min antes</div>
+</div>
+
+<div class="sp-banner" id="hol-banner">
+  <div class="sp-emoji">🎉</div><div class="sp-title" id="hol-name"></div>
+  <div class="sp-msg">¡Buen descanso Karen! No hay paneles hoy.</div>
+</div>
+<div class="sp-banner" id="wknd-banner">
+  <div class="sp-emoji">🏖️</div><div class="sp-title">Fin de semana</div>
+  <div class="sp-msg">No hay paneles programados hoy.</div>
+</div>
+
+<div id="schedule"></div>
+
+<div id="footer">
+  <strong>📱 Instrucciones:</strong><br>
+  1. Toca <em>"🔔 Activar alertas"</em> y permite las notificaciones.<br>
+  2. En Chrome → menú (⋮) → <em>"Agregar a pantalla de inicio"</em>.<br>
+  3. Ábrela una vez al día para que el servicio de alertas se active.<br>
+  Las notificaciones funcionan en segundo plano mientras el teléfono esté encendido.
+</div>
+
+<script>
+// ════════════════════════════════════════
+// FESTIVOS + CRONOGRAMA (mismo que sw.js)
+// ════════════════════════════════════════
+const HOLIDAYS={
+  '2026-01-01':'Año Nuevo','2026-01-12':'Reyes Magos',
+  '2026-03-23':'San José','2026-03-29':'Domingo de Ramos',
+  '2026-04-02':'Jueves Santo','2026-04-03':'Viernes Santo',
+  '2026-04-05':'Domingo de Resurrección','2026-05-01':'Día del Trabajo',
+  '2026-05-18':'Ascensión','2026-06-08':'Corpus Christi',
+  '2026-06-15':'Sagrado Corazón','2026-06-29':'San Pedro y San Pablo',
+  '2026-07-13':'Nuestra Señora del Rosario de Chiquinquirá',
+  '2026-07-20':'Día de la Independencia','2026-08-07':'Batalla de Boyacá',
+  '2026-08-17':'Asunción de la Virgen','2026-10-12':'Día de la Raza',
+  '2026-11-02':'Todos los Santos','2026-11-16':'Independencia de Cartagena',
+  '2026-12-08':'Inmaculada Concepción','2026-12-25':'Navidad',
+};
+const MON_HOL=['2026-01-12','2026-03-23','2026-05-18','2026-06-08','2026-06-15','2026-06-29','2026-07-13','2026-07-20','2026-08-17','2026-10-12','2026-11-02','2026-11-16'];
+const SCH={
+  1:[{h:2,m:0,n:'Derechos Fundamentales en el Trabajo V3',t:'auto'},{h:3,m:0,n:'Horas Instructor 2026',t:'auto'},{h:7,m:0,n:'Proyección Cupos - III Oferta Presencial y A Distancia',t:'auto'},{h:7,m:30,n:'Cargue reporte actualizado - Derechos Fundamentales V3',t:'manual'},{h:7,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:8,m:0,n:'Ejecución de Metas 2026',t:'auto'},{h:8,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:9,m:0,n:'Programación Horas por Grupo',t:'manual'},{h:9,m:30,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:10,m:0,n:'Indicador Horas Instructor - Contratista',t:'manual'},{h:10,m:30,n:'Indicador Horas Instructor - Planta',t:'manual'},{h:11,m:0,n:'Infografía DFP Regiones 2026',t:'auto'},{h:12,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:14,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:14,m:30,n:'FEC - Construcción',t:'auto'},{h:15,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:16,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:18,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:20,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'}],
+  2:[{h:2,m:0,n:'Derechos Fundamentales en el Trabajo V3',t:'auto'},{h:5,m:0,n:'Generación de reportes',t:'manual'},{h:6,m:30,n:'Ejecución Meta Propia TIC 2026',t:'auto'},{h:7,m:0,n:'Proyección Cupos - III Oferta Presencial y A Distancia',t:'auto'},{h:7,m:30,n:'Cargue reporte actualizado - Derechos Fundamentales V3',t:'manual'},{h:7,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:8,m:0,n:'Ejecución de Metas 2026',t:'auto'},{h:8,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:9,m:0,n:'Generar reportes Instructores - Juicios Emitidos vs Programados',t:'manual'},{h:9,m:30,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:11,m:0,n:'Infografía DFP Regiones 2026',t:'auto'},{h:12,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:14,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:14,m:30,n:'FEC - Construcción',t:'auto'},{h:15,m:0,n:'Envío certificados bilingüe 7 y 8',t:'manual'},{h:15,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:16,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:17,m:30,n:'Cargue reportes Instructores - Juicios Emitidos (Onedrive)',t:'manual'},{h:18,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:20,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:21,m:0,n:'118 paneles - Instructores con Juicios Emitidos y con Programación',t:'manual'}],
+  3:[{h:2,m:0,n:'Derechos Fundamentales en el Trabajo V3',t:'auto'},{h:7,m:0,n:'Proyección Cupos - III Oferta Presencial y A Distancia',t:'auto'},{h:7,m:30,n:'Cargue reporte actualizado - Derechos Fundamentales V3',t:'manual'},{h:7,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:8,m:0,n:'Ejecución de Metas 2026',t:'auto'},{h:8,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:9,m:0,n:'Programación Horas por Grupo',t:'manual'},{h:9,m:30,n:'Ejecución Catatumbo',t:'manual'},{h:9,m:30,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:10,m:0,n:'Ejecución PDET',t:'manual'},{h:11,m:0,n:'Infografía DFP Regiones 2026',t:'auto'},{h:12,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:14,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:14,m:30,n:'FEC - Construcción',t:'auto'},{h:15,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:16,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:17,m:30,n:'Cargue reportes Instructores - Juicios Emitidos (Onedrive)',t:'manual'},{h:18,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:20,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'}],
+  4:[{h:0,m:0,n:'Horas por Competencia - Terminadas',t:'auto'},{h:2,m:0,n:'Derechos Fundamentales en el Trabajo V3',t:'auto'},{h:6,m:30,n:'Ejecución Meta Propia TIC 2026',t:'auto'},{h:7,m:0,n:'Proyección Cupos - III Oferta Presencial y A Distancia',t:'auto'},{h:7,m:30,n:'Cargue reporte actualizado - Derechos Fundamentales V3',t:'manual'},{h:7,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:8,m:0,n:'Ejecución de Metas 2026',t:'auto'},{h:8,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:9,m:30,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:11,m:0,n:'Infografía DFP Regiones 2026',t:'auto'},{h:12,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:14,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:14,m:30,n:'FEC - Construcción',t:'auto'},{h:15,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:16,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:17,m:30,n:'Instructores Juicios Emitidos vs Programados',t:'manual'},{h:18,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:20,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'}],
+  5:[{h:2,m:0,n:'Derechos Fundamentales en el Trabajo V3',t:'auto'},{h:5,m:0,n:'Generación de reportes',t:'manual'},{h:6,m:30,n:'Generación de reportes de Etapa Productiva',t:'manual'},{h:6,m:30,n:'Ejecución Meta Propia TIC 2026',t:'auto'},{h:7,m:0,n:'Proyección Cupos - III Oferta Presencial y A Distancia',t:'auto'},{h:7,m:30,n:'Cargue reporte actualizado - Derechos Fundamentales V3',t:'manual'},{h:7,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:8,m:0,n:'Ejecución de Metas 2026',t:'auto'},{h:8,m:0,n:'Infografía DFP Regiones 2026',t:'auto'},{h:8,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:9,m:0,n:'Programación Horas por Grupo',t:'manual'},{h:9,m:30,n:'Generación de reportes de Visualización de Etapa Productiva',t:'manual'},{h:9,m:30,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:10,m:30,n:'Infografía DFP Regiones 2026',t:'auto'},{h:12,m:0,n:'Indicadores de Programas de Formación Titulada desde el 2019',t:'auto'},{h:12,m:30,n:'Indicadores de Programas de Formación Complementaria desde el 2019',t:'auto'},{h:13,m:0,n:'Indicador 771 fichas correctamente programadas',t:'manual'},{h:13,m:30,n:'Actualización de Etapa Productiva',t:'manual'},{h:14,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:14,m:30,n:'FEC - Construcción',t:'auto'},{h:15,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:15,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:16,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:16,m:30,n:'Indicador programación horas grupo en ejecución - Lectiva',t:'manual'},{h:17,m:30,n:'Lista de chequeo actualización semanal',t:'manual'},{h:18,m:0,n:'Seguimiento Inscritos Ofertas',t:'auto'},{h:19,m:30,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'},{h:20,m:0,n:'Comportamiento del Proceso de Matrículas 2026',t:'auto'}],
+};
+const MON_ONLY=[{h:3,m:0,n:'Horas Instructor 2026',t:'auto',extra:true},{h:10,m:0,n:'Indicador Horas Instructor - Contratista',t:'manual',extra:true},{h:10,m:30,n:'Indicador Horas Instructor - Planta',t:'manual',extra:true}];
+
+// ════════════════════════════════════════
+// ESTADO
+// ════════════════════════════════════════
+const verified = new Set();
+let todayItems = [], audioCtx = null, sw = null, lastRenderMin = -1;
+
+// ════════════════════════════════════════
+// UTILIDADES
+// ════════════════════════════════════════
+function toDateStr(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function alertMin(h,m,type){const b=h*60+m;return type==='auto'?b+10:b-20;}
+function fmtHM(tm){if(tm<0||tm>=1440)return'--:--';const h=Math.floor(tm/60),m=tm%60,s=h<12?'a.m.':'p.m.',h12=h%12||12;return`${h12}:${String(m).padStart(2,'0')} ${s}`;}
+function fmtSched(h,m){return fmtHM(h*60+m);}
+const DCAP=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+// ════════════════════════════════════════
+// CONSTRUIR ITEMS
+// ════════════════════════════════════════
+function buildToday(){
+  const now=new Date(),dow=now.getDay(),ds=toDateStr(now);
+  if(HOLIDAYS[ds]){document.getElementById('hol-banner').classList.add('show');document.getElementById('hol-name').textContent=HOLIDAYS[ds];document.getElementById('schedule').innerHTML='';document.getElementById('next-banner').classList.add('hidden');return[];}
+  if(dow===0||dow===6){document.getElementById('wknd-banner').classList.add('show');document.getElementById('schedule').innerHTML='';document.getElementById('next-banner').classList.add('hidden');return[];}
+  let items=[...(SCH[dow]||[])];
+  if(dow===2){const y=new Date(now);y.setDate(y.getDate()-1);if(MON_HOL.includes(toDateStr(y)))items=[...items,...MON_ONLY];}
+  items.sort((a,b)=>(a.h*60+a.m)-(b.h*60+b.m));
+  return items.map((it,i)=>({...it,id:`i${i}`,aMin:alertMin(it.h,it.m,it.t)}));
+}
+
+// ════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════
+function render(){
+  const cont=document.getElementById('schedule');
+  if(!todayItems.length){cont.innerHTML='';return;}
+  const now=new Date(),nm=now.getHours()*60+now.getMinutes();
+  const next=todayItems.find(it=>!verified.has(it.id)&&it.aMin>nm);
+  let html='',ls='';
+  todayItems.forEach(it=>{
+    const sec=it.h<6?'night':it.h<12?'morning':it.h<18?'afternoon':'evening';
+    if(sec!==ls){const lb={night:'🌃 Madrugada',morning:'☀️ Mañana',afternoon:'🌤️ Tarde',evening:'🌙 Noche'};html+=`<div class="sec-hdr">${lb[sec]}</div>`;ls=sec;}
+    const past=it.aMin<nm,done=verified.has(it.id),isNext=next&&it.id===next.id;
+    let cls=done?'verified':isNext?'next-up':past?'past':'';
+    const al=it.t==='auto'?`+10' → ${fmtHM(it.aMin)}`:`-20' → ${fmtHM(it.aMin)}`;
+    const bt=it.extra?'EXTRA LUNES':it.t==='auto'?'AUTOMÁTICO':'MANUAL';
+    const bc=it.extra?'extra':it.t;
+    html+=`<div class="si ${cls}" id="${it.id}"><div class="tc"><div class="ts">${fmtSched(it.h,it.m)}</div><div class="ta">⏰ ${al}</div></div><div class="dot ${it.t}"></div><div class="ib"><div class="iname">${it.n}</div><span class="badge ${bc}">${bt}</span></div><button class="dbtn" onclick="markDone('${it.id}')">${done?'✓':'Hecho'}</button></div>`;
+  });
+  cont.innerHTML=html;
+}
+
+function markDone(id){
+  verified.add(id);
+  const el=document.getElementById(id);
+  if(el){el.className='si verified';const b=el.querySelector('.dbtn');if(b)b.textContent='✓';}
+  sw&&sw.postMessage({type:'DISMISS',id});
+  updateBanner();
+}
+
+// ════════════════════════════════════════
+// BANNER PRÓXIMA ALERTA
+// ════════════════════════════════════════
+function updateBanner(){
+  const now=new Date(),nmf=now.getHours()*60+now.getMinutes()+now.getSeconds()/60;
+  const next=todayItems.find(it=>!verified.has(it.id)&&it.aMin>nmf);
+  const bn=document.getElementById('next-banner');
+  if(!next){bn.classList.add('hidden');return;}
+  bn.classList.remove('hidden');
+  document.getElementById('nb-name').textContent=next.n;
+  document.getElementById('nb-sub').textContent=next.t==='auto'?`Verificar (automático — actualiza ${fmtSched(next.h,next.m)})`:`Ejecutar manualmente ${fmtSched(next.h,next.m)}`;
+  const rem=Math.max(0,Math.round((next.aMin-nmf)*60));
+  const rh=Math.floor(rem/3600),rm=Math.floor((rem%3600)/60),rs=rem%60;
+  document.getElementById('nb-cd').textContent=rh>0?`${rh}h ${String(rm).padStart(2,'0')}m`:`${String(rm).padStart(2,'0')}:${String(rs).padStart(2,'0')}`;
+}
+
+// ════════════════════════════════════════
+// AUDIO
+// ════════════════════════════════════════
+function getCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();return audioCtx;}
+function tone(ctx,freq,type,t,dur,vol){const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=freq;o.type=type;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.02);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.start(t);o.stop(t+dur+.05);}
+function playAuto(){const c=getCtx(),t=c.currentTime;tone(c,523,'sine',t,.30,.25);tone(c,659,'sine',t+.18,.25,.22);tone(c,784,'sine',t+.34,.35,.28);}
+function playManual(){const c=getCtx(),t=c.currentTime;[0,.28,.56].forEach(d=>tone(c,880,'square',t+d,.16,.18));}
+function testSound(){playManual();setTimeout(playAuto,1200);}
+
+// ════════════════════════════════════════
+// NOTIFICACIONES
+// ════════════════════════════════════════
+async function reqNotif(){
+  if(!('Notification'in window)){setNS('⚠️ Tu navegador no soporta notificaciones');return;}
+  const p=await Notification.requestPermission();
+  if(p==='granted'){setNS('✅ Notificaciones activas');document.getElementById('btn-notif').textContent='🔔 Alertas activas';}
+  else if(p==='denied')setNS('❌ Bloqueadas — actívalas en Ajustes del celular');
+  else setNS('⚠️ Permiso no concedido');
+}
+function setNS(m){document.getElementById('notif-st').textContent=m;}
+
+// ════════════════════════════════════════
+// SERVICE WORKER
+// ════════════════════════════════════════
+async function initSW(){
+  if(!('serviceWorker'in navigator)){setSWStatus('orange','Service Worker no disponible');return;}
+  try{
+    const reg=await navigator.serviceWorker.register('./sw.js',{scope:'./'});
+    sw=reg.active||reg.waiting||reg.installing;
+    // Esperar a que esté activo
+    await navigator.serviceWorker.ready;
+    sw=(await navigator.serviceWorker.ready).active;
+    setSWStatus('var(--green)','✅ Servicio de alertas activo — funciona en segundo plano');
+
+    // Pedir almacenamiento persistente (ayuda a mantener el SW vivo en Android)
+    if(navigator.storage&&navigator.storage.persist){
+      await navigator.storage.persist();
+    }
+
+    // Registrar background sync de respaldo
+    try{
+      const r=await navigator.serviceWorker.ready;
+      await r.sync.register('reschedule');
+    }catch(_){}
+
+    // Ping cada 4 minutos para mantener el SW vivo mientras la app está abierta
+    setInterval(()=>{sw&&sw.postMessage({type:'PING'});},4*60*1000);
+
+  }catch(e){setSWStatus('var(--red)','⚠️ Error al iniciar el servicio: '+e.message);}
+}
+
+function setSWStatus(color,msg){
+  document.getElementById('sw-dot').style.background=color;
+  document.getElementById('sw-status').textContent=msg;
+}
+
+// ════════════════════════════════════════
+// TICK
+// ════════════════════════════════════════
+function tick(){
+  const now=new Date(),h=now.getHours(),mi=now.getMinutes(),s=now.getSeconds();
+  document.getElementById('clock').textContent=`${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const nm=h*60+mi;
+  if(nm!==lastRenderMin){render();lastRenderMin=nm;}
+  updateBanner();
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+async function init(){
+  const now=new Date(),dow=now.getDay();
+  document.getElementById('datedisplay').textContent=`${DCAP[dow]}, ${now.getDate()} de ${MES[now.getMonth()]} de ${now.getFullYear()}`;
+  todayItems=buildToday();
+  render();updateBanner();
+  if(Notification.permission==='granted'){setNS('✅ Notificaciones activas');document.getElementById('btn-notif').textContent='🔔 Alertas activas';}
+  else if(Notification.permission==='denied')setNS('❌ Bloqueadas en Ajustes del celular');
+  await initSW();
+  setInterval(tick,1000);tick();
+}
+window.addEventListener('load',init);
+</script>
+</body>
+</html>
