@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -109,6 +109,7 @@ header { background:var(--bg2); padding:14px 16px 10px; border-bottom:1px solid 
 <div id="controls">
   <button class="btn" id="btn-notif" onclick="reqNotif()">🔔 Activar alertas</button>
   <button class="btn" id="btn-sound" onclick="testSound()">🔊 Probar sonido</button>
+  <button class="btn" id="btn-test" onclick="testNotif()" style="background:var(--amber);color:#0f172a">📣 Prueba ahora</button>
   <div id="notif-st"></div>
 </div>
 
@@ -250,6 +251,21 @@ function testSound(){playManual();setTimeout(playAuto,1200);}
 // ════════════════════════════════════════
 // NOTIFICACIONES
 // ════════════════════════════════════════
+async function testNotif(){
+  if(Notification.permission!=='granted'){
+    setNS('⚠️ Primero activa las notificaciones');return;
+  }
+  // Notificación inmediata de prueba via SW
+  const reg=await navigator.serviceWorker.ready;
+  reg.showNotification('✅ Prueba exitosa — Monitor de Paneles',{
+    body:'Las alertas funcionan correctamente en este dispositivo.',
+    tag:'test',requireInteraction:true,icon:'./icon.svg',
+    vibrate:[200,100,200],
+  });
+  playManual();
+  setNS('✅ Notificación de prueba enviada');
+}
+
 async function reqNotif(){
   if(!('Notification'in window)){setNS('⚠️ Tu navegador no soporta notificaciones');return;}
   const p=await Notification.requestPermission();
@@ -283,10 +299,13 @@ async function initSW(){
       await r.sync.register('reschedule');
     }catch(_){}
 
+    // Reprogramar alertas en cada carga de la página (fix bug)
+    sw.postMessage({type:'RESCHEDULE'});
+
     // Ping cada 4 minutos para mantener el SW vivo mientras la app está abierta
     setInterval(()=>{sw&&sw.postMessage({type:'PING'});},4*60*1000);
 
-  }catch(e){setSWStatus('var(--red)','⚠️ Error al iniciar el servicio: '+e.message);}
+  }catch(e){setSWStatus('var(--red)','⚠️ Error: '+e.message);}
 }
 
 function setSWStatus(color,msg){
@@ -314,7 +333,11 @@ async function init(){
   todayItems=buildToday();
   render();updateBanner();
   if(Notification.permission==='granted'){setNS('✅ Notificaciones activas');document.getElementById('btn-notif').textContent='🔔 Alertas activas';}
-  else if(Notification.permission==='denied')setNS('❌ Bloqueadas en Ajustes del celular');
+  else if(Notification.permission==='denied')setNS('❌ Bloqueadas — ve a Ajustes del celular → Apps → Chrome → Notificaciones');
+  else{
+    // Pedir permiso automáticamente al cargar
+    setTimeout(reqNotif, 1500);
+  }
   await initSW();
   setInterval(tick,1000);tick();
 }
